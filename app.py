@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import urllib.parse
 
 # 1. הגדרות דף
 st.set_page_config(page_title="Personal AI Search", page_icon="🔍")
@@ -23,6 +24,48 @@ with st.sidebar:
                     st.error("שגיאה בעיבוד הקובץ.")
         else:
             st.warning("אנא בחר קובץ קודם.")
+    st.markdown("---")
+    st.header("ניהול זיכרון")
+    
+    st.markdown("---")
+    st.header("ניהול קבצים קיימים")
+    
+    files_res = requests.get("http://127.0.0.1:8000/list_files")
+    if files_res.status_code == 200:
+        existing_files = files_res.json().get("files", [])
+        
+        for file_obj in existing_files:
+            disp = file_obj["display_name"]
+            internal = file_obj["internal_name"]
+            
+            col1, col2 = st.columns([4, 1])
+            col1.write(f"📄 {disp}")
+            
+            if col2.button("🗑️", key=f"del_{internal}"):
+                with st.spinner("מוחק..."):
+                    # אנחנו שולחים את השם הפנימי כפרמטר (Query Param)
+                    params = {"internal_name": internal}
+                    del_res = requests.delete("http://127.0.0.1:8000/delete_file", params=params)
+                    
+                    if del_res.status_code == 200:
+                        st.success("נמחק!")
+                        st.rerun()
+                    else:
+                        st.error("נכשל")
+    else:
+        st.error("לא ניתן לטעון את רשימת הקבצים.")
+
+    # כפתור בצבע אדום (type="primary" בגרסאות מסוימות או פשוט עיצוב ייעודי)
+    if st.button("🗑️ אפס את כל הזיכרון", use_container_width=True):
+        with st.spinner("מוחק נתונים..."):
+            res = requests.post("http://127.0.0.1:8000/reset")
+            if res.status_code == 200:
+                st.success("הזיכרון אופס!")
+                # אתחול מחדש של היסטוריית הצ'אט כדי שהמשתמש לא יראה תשובה ישנה
+                st.session_state.messages = []
+                st.rerun() # רענון הדף
+            else:
+                st.error("שגיאה באיפוס הזיכרון.")        
 
 # כתובת השרת שבנינו קודם
 API_URL = "http://127.0.0.1:8000/ask"

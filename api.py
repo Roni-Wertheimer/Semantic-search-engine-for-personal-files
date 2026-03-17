@@ -78,4 +78,58 @@ async def ingest_file(file: UploadFile = File(...)):
         
         return {"message": f"הקובץ {file.filename} עובד ונוסף לזיכרון בהצלחה!"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))    
+        raise HTTPException(status_code=500, detail=str(e))   
+# 1. נקודת קצה לקבלת רשימת הקבצים הקיימים בזיכרון
+@app.get("/list_files")
+async def list_files():
+    try:
+        data = vectorstore.get()
+        metadatas = data.get("metadatas", [])
+        
+        unique_files = []
+        seen_internal_names = set()
+        
+        for m in metadatas:
+            internal_name = m.get("source")
+            if internal_name and internal_name not in seen_internal_names:
+                display_name = internal_name.split("\\")[-1].split("/")[-1]
+                # אנחנו מחזירים אובייקט עם שני השמות
+                unique_files.append({
+                    "display_name": display_name,
+                    "internal_name": internal_name
+                })
+                seen_internal_names.add(internal_name)
+        
+        return {"files": unique_files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/delete_file")
+async def delete_file(internal_name: str):
+    try:
+        print(f"--- מנסה למחוק את: {internal_name} ---")
+        
+        # מחיקה עם התאמה מדויקת למקור
+        vectorstore.delete(where={"source": internal_name})
+        
+        print(f"--- המחיקה הסתיימה בהצלחה ---")
+        return {"message": "Success"}
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/reset")
+async def reset_database():
+    try:
+        # חייב להופיע כאן, לפני כל שימוש במשתנה!
+        global vectorstore 
+        
+        # עכשיו אפשר להשתמש בו ולשנות אותו
+        vectorstore.delete_collection()
+        
+        # יצירה מחדש
+        vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+        
+        return {"message": "הזיכרון אופס בהצלחה! המערכת נקייה."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))   

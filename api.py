@@ -30,26 +30,27 @@ def home():
 @app.post("/ask")
 async def ask_question(request: QueryRequest):
     try:
-        # חיפוש ב-ChromaDB
+        # 1. חיפוש המקטעים הרלוונטיים
         docs = vectorstore.similarity_search(request.question, k=3)
+        
+        # 2. איסוף המקורות (שם קובץ + עמוד)
+        sources_info = []
+        for d in docs:
+            file_name = d.metadata.get("source", "Unknown File")
+            # ה-Loader מתחיל לספור עמודים מ-0, אז נוסיף 1 כדי שיהיה ברור למשתמש
+            page_num = d.metadata.get("page", 0) + 1
+            sources_info.append(f"{file_name} (עמוד {page_num})")
+        
+        # 3. בניית ההקשר ל-AI
         context = "\n\n".join([d.page_content for d in docs])
+        full_prompt = f"Context: {context}\n\nQuestion: {request.question}\nAnswer:"
         
-        # בניית ה-Prompt
-        full_prompt = f"""
-        Use the context below to answer the user question.
-        Context: {context}
-        User Question: {request.question}
-        Answer:"""
-        
-        # הרצה
+        # 4. הרצה
         response = llm.invoke(full_prompt)
-        
-        # החזרת התשובה פלוס המקורות (Citations) - זה מרשים מראיינים!
-        sources = [d.metadata.get("source", "Unknown") for d in docs]
         
         return {
             "answer": response,
-            "sources": list(set(sources)) # מסיר כפילויות
+            "sources": list(set(sources_info))  # הסרת מקורות כפולים
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

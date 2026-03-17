@@ -53,14 +53,15 @@ if prompt := st.chat_input("שאל אותי משהו על המסמכים שלך.
                     answer = data["answer"]
                     sources = data.get("sources", [])
                     
-                    # הצגת התשובה
                     st.markdown(answer)
                     
-                    # הצגת המקורות (אם יש)
                     if sources:
-                        with st.expander("מקורות מהמסמך"):
-                            for s in sources:
-                                st.write(f"📄 {s}")
+                        st.markdown("---")
+                        st.caption("📍 המידע התבסס על המקורות הבאים:")
+                        for s in sources:
+                            # ניקוי שם הקובץ מהנתיב המלא (אם קיים)
+                            clean_source = s.split("\\")[-1].split("/")[-1]
+                            st.info(f"📄 {clean_source}")
                                 
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 else:

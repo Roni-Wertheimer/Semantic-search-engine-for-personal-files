@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import urllib.parse
 
+
 # 1. הגדרות דף
 st.set_page_config(page_title="Personal AI Search", page_icon="🔍")
 st.title("🔍 מנוע חיפוש אישי מבוסס AI")
@@ -9,21 +10,27 @@ st.title("🔍 מנוע חיפוש אישי מבוסס AI")
 # סרגל צד להעלאת קבצים
 with st.sidebar:
     st.header("העלאת מסמכים")
-    uploaded_file = st.file_uploader("בחר קובץ PDF", type="pdf")
+    # הוספנו accept_multiple_files=True
+    uploaded_files = st.file_uploader("בחר קבצי PDF", type="pdf", accept_multiple_files=True)
     
-    if st.button("עבד קובץ"):
-        if uploaded_file is not None:
-            with st.spinner("מעבד את הקובץ..."):
-                # שליחת הקובץ ל-API
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+    if st.button("עבד קבצים"):
+        if uploaded_files:
+            with st.spinner(f"מעבד {len(uploaded_files)} קבצים..."):
+                # אנחנו שולחים את כל הקבצים בבקשה אחת (Multipart Request)
+                files = [
+                    ("files", (f.name, f.getvalue(), "application/pdf")) 
+                    for f in uploaded_files
+                ]
+                
                 res = requests.post("http://127.0.0.1:8000/ingest", files=files)
                 
                 if res.status_code == 200:
                     st.success(res.json()["message"])
+                    st.rerun() # רענון כדי לראות את כולם ברשימה למטה
                 else:
-                    st.error("שגיאה בעיבוד הקובץ.")
+                    st.error("שגיאה בעיבוד הקבצים.")
         else:
-            st.warning("אנא בחר קובץ קודם.")
+            st.warning("אנא בחר לפחות קובץ אחד.")
     st.markdown("---")
     st.header("ניהול זיכרון")
     

@@ -5,6 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from fastapi import UploadFile, File
 import os
+from typing import List
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -56,29 +57,33 @@ async def ask_question(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/ingest")
-async def ingest_file(file: UploadFile = File(...)):
+async def ingest_files(files: List[UploadFile] = File(...)):
+    processed_files = []
     try:
-        # 1. שמירת הקובץ זמנית בשרת
-        file_path = f"temp_{file.filename}"
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
-        
-        # 2. תהליך ה-Ingestion (בדיוק כמו ב-ingest.py)
-        loader = PyPDFLoader(file_path)
-        docs = loader.load()
-        
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        splits = text_splitter.split_documents(docs)
-        
-        # הוספת המקטעים החדשים לבסיס הנתונים הקיים
-        vectorstore.add_documents(documents=splits)
-        
-        # 3. מחיקת הקובץ הזמני
-        os.remove(file_path)
-        
-        return {"message": f"הקובץ {file.filename} עובד ונוסף לזיכרון בהצלחה!"}
+        global vectorstore
+        for file in files:
+            # 1. שמירה זמנית
+            file_path = f"temp_{file.filename}"
+            with open(file_path, "wb") as f:
+                f.write(await file.read())
+            
+            # 2. עיבוד הקובץ
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            splits = text_splitter.split_documents(docs)
+            
+            # 3. הוספה ל-Vectorstore
+            vectorstore.add_documents(documents=splits)
+            
+            # 4. מחיקת הקובץ הזמני
+            os.remove(file_path)
+            processed_files.append(file.filename)
+            
+        return {"message": f"הקבצים הבאים נוספו בהצלחה: {', '.join(processed_files)}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))   
+        raise HTTPException(status_code=500, detail=str(e))
+    
 # 1. נקודת קצה לקבלת רשימת הקבצים הקיימים בזיכרון
 @app.get("/list_files")
 async def list_files():
